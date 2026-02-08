@@ -1,0 +1,44 @@
+{
+  "tests": [
+    {
+      "name": "Get all incidents",
+      "method": "GET",
+      "path": "/?path=/incidents",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "data": []
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get all service requests",
+      "method": "GET",
+      "path": "/?path=/requests",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "data": []
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get all CMDB items",
+      "method": "GET",
+      "path": "/?path=/cmdb",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "data": []
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get dashboard stats",
+      "method": "GET",
+      "path": "/?path=/stats",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "data": {}
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

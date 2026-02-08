@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,27 +14,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Icon from '@/components/ui/icon';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import CreateIncidentDialog from '@/components/CreateIncidentDialog';
+
+const API_URL = 'https://functions.poehali.dev/c2bdd105-8811-4bd7-9c13-a84fec86834c';
 
 const Index = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  const [incidents, setIncidents] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [cmdbItems, setCmdbItems] = useState([]);
+  const [stats, setStats] = useState({ open_incidents: 0, active_requests: 0, sla_percentage: 0, active_ci: 0 });
+  const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const modules = [
     { id: 'dashboard', name: 'Дашборд', icon: 'LayoutDashboard' },
@@ -47,25 +41,130 @@ const Index = () => {
     { id: 'integrations', name: 'Интеграции', icon: 'Plug' },
   ];
 
+  // Загружаем данные из API
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeModule === 'dashboard' || activeModule === 'incidents') {
+        const incidentsRes = await fetch(`${API_URL}?path=/incidents`);
+        const incidentsData = await incidentsRes.json();
+        setIncidents(incidentsData.data || []);
+      }
+
+      if (activeModule === 'dashboard' || activeModule === 'requests') {
+        const requestsRes = await fetch(`${API_URL}?path=/requests`);
+        const requestsData = await requestsRes.json();
+        setRequests(requestsData.data || []);
+      }
+
+      if (activeModule === 'dashboard' || activeModule === 'cmdb') {
+        const cmdbRes = await fetch(`${API_URL}?path=/cmdb`);
+        const cmdbData = await cmdbRes.json();
+        setCmdbItems(cmdbData.data || []);
+      }
+
+      if (activeModule === 'dashboard') {
+        const statsRes = await fetch(`${API_URL}?path=/stats`);
+        const statsData = await statsRes.json();
+        setStats(statsData.data || {});
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных:', error);
+      toast({
+        title: 'Ошибка загрузки',
+        description: 'Не удалось загрузить данные',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeModule]);
+
+  const handleCreateIncident = async (formData: Record<string, unknown>) => {
+    try {
+      const response = await fetch(`${API_URL}?path=/incidents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Успешно!',
+          description: 'Инцидент создан',
+        });
+        setDialogOpen(false);
+        loadData();
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать инцидент',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCreateRequest = async (formData: Record<string, unknown>) => {
+    try {
+      const response = await fetch(`${API_URL}?path=/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Успешно!',
+          description: 'Заявка создана',
+        });
+        setDialogOpen(false);
+        loadData();
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать заявку',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCreateCMDB = async (formData: Record<string, unknown>) => {
+    try {
+      const response = await fetch(`${API_URL}?path=/cmdb`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Успешно!',
+          description: 'CI добавлена',
+        });
+        setDialogOpen(false);
+        loadData();
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось добавить CI',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const dashboardStats = [
-    { title: 'Открытые инциденты', value: '24', change: '+3', icon: 'AlertCircle', color: 'text-red-500' },
-    { title: 'SLA соблюдено', value: '94%', change: '+2%', icon: 'CheckCircle', color: 'text-green-500' },
-    { title: 'Активные заявки', value: '156', change: '-12', icon: 'FileText', color: 'text-blue-500' },
-    { title: 'Среднее время решения', value: '4.2ч', change: '-0.5ч', icon: 'Clock', color: 'text-yellow-500' },
-  ];
-
-  const incidents = [
-    { id: 'INC-001', title: 'Сбой почтового сервера', priority: 'Критический', status: 'В работе', assignee: 'Иванов И.', sla: '2ч 15м', created: '08.02.2026 09:30' },
-    { id: 'INC-002', title: 'Медленная работа CRM', priority: 'Высокий', status: 'Назначен', assignee: 'Петрова А.', sla: '4ч 20м', created: '08.02.2026 10:15' },
-    { id: 'INC-003', title: 'Нет доступа к файловому хранилищу', priority: 'Средний', status: 'Ожидание', assignee: '-', sla: '8ч 10м', created: '08.02.2026 11:00' },
-    { id: 'INC-004', title: 'Принтер не печатает в бухгалтерии', priority: 'Низкий', status: 'Решен', assignee: 'Сидоров П.', sla: 'Соблюдено', created: '08.02.2026 08:45' },
-  ];
-
-  const cmdbItems = [
-    { id: 'CI-001', name: 'MAIL-SRV-01', type: 'Сервер', status: 'Активен', location: 'ЦОД-1', owner: 'ИТ отдел', lastUpdate: '07.02.2026' },
-    { id: 'CI-002', name: 'CRM-APP-PROD', type: 'Приложение', status: 'Активен', location: 'Cloud', owner: 'Отдел продаж', lastUpdate: '05.02.2026' },
-    { id: 'CI-003', name: 'SWITCH-FL3-02', type: 'Сеть', status: 'Активен', location: 'Офис, 3 этаж', owner: 'ИТ отдел', lastUpdate: '01.02.2026' },
-    { id: 'CI-004', name: 'WS-ACC-15', type: 'Рабочая станция', status: 'В ремонте', location: 'Бухгалтерия', owner: 'Бухгалтерия', lastUpdate: '08.02.2026' },
+    { title: 'Открытые инциденты', value: stats.open_incidents?.toString() || '0', change: '+3', icon: 'AlertCircle', color: 'text-red-500' },
+    { title: 'SLA соблюдено', value: `${stats.sla_percentage || 0}%`, change: '+2%', icon: 'CheckCircle', color: 'text-green-500' },
+    { title: 'Активные заявки', value: stats.active_requests?.toString() || '0', change: '-12', icon: 'FileText', color: 'text-blue-500' },
+    { title: 'Активные CI', value: stats.active_ci?.toString() || '0', change: '+5', icon: 'Database', color: 'text-yellow-500' },
   ];
 
   const getPriorityColor = (priority: string) => {
@@ -88,6 +187,18 @@ const Index = () => {
       case 'В ремонте': return 'bg-orange-500/20 text-orange-400 border-orange-500/50';
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
@@ -156,68 +267,7 @@ const Index = () => {
                 <Icon name="Bell" size={16} />
                 Уведомления
               </Button>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-smooth">
-                    <Icon name="Plus" size={16} />
-                    Создать
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Создать инцидент</DialogTitle>
-                    <DialogDescription>
-                      Заполните информацию для регистрации нового инцидента
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Название инцидента</Label>
-                      <Input placeholder="Краткое описание проблемы" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Приоритет</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Выберите приоритет" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="critical">Критический</SelectItem>
-                            <SelectItem value="high">Высокий</SelectItem>
-                            <SelectItem value="medium">Средний</SelectItem>
-                            <SelectItem value="low">Низкий</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Категория</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Выберите категорию" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="hardware">Оборудование</SelectItem>
-                            <SelectItem value="software">ПО</SelectItem>
-                            <SelectItem value="network">Сеть</SelectItem>
-                            <SelectItem value="access">Доступ</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Описание</Label>
-                      <Textarea placeholder="Подробное описание инцидента..." rows={4} />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline">Отмена</Button>
-                      <Button className="bg-gradient-to-r from-primary to-accent">
-                        Создать инцидент
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <CreateIncidentDialog onSubmit={handleCreateIncident} />
             </div>
           </div>
 
@@ -305,10 +355,9 @@ const Index = () => {
               <CardContent>
                 <Tabs defaultValue="all" className="w-full">
                   <TabsList className="mb-4">
-                    <TabsTrigger value="all">Все (24)</TabsTrigger>
-                    <TabsTrigger value="active">Активные (18)</TabsTrigger>
-                    <TabsTrigger value="resolved">Решенные (6)</TabsTrigger>
-                    <TabsTrigger value="overdue">Просроченные (2)</TabsTrigger>
+                    <TabsTrigger value="all">Все ({incidents.length})</TabsTrigger>
+                    <TabsTrigger value="active">Активные</TabsTrigger>
+                    <TabsTrigger value="resolved">Решенные</TabsTrigger>
                   </TabsList>
                   <TabsContent value="all">
                     <Table>
@@ -325,32 +374,46 @@ const Index = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {incidents.map((incident) => (
-                          <TableRow key={incident.id} className="hover:bg-muted/50 transition-smooth">
-                            <TableCell className="font-medium">{incident.id}</TableCell>
-                            <TableCell className="font-medium">{incident.title}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={getPriorityColor(incident.priority)}>
-                                {incident.priority}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={getStatusColor(incident.status)}>
-                                {incident.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{incident.assignee}</TableCell>
-                            <TableCell className={incident.sla === 'Соблюдено' ? 'text-green-400' : 'text-yellow-400'}>
-                              {incident.sla}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{incident.created}</TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="hover:bg-primary/10">
-                                <Icon name="MoreVertical" size={16} />
-                              </Button>
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              Загрузка...
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : incidents.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              Инцидентов нет
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          incidents.map((incident: Record<string, unknown>) => (
+                            <TableRow key={incident.incident_id as string} className="hover:bg-muted/50 transition-smooth">
+                              <TableCell className="font-medium">{incident.incident_id as string}</TableCell>
+                              <TableCell className="font-medium">{incident.title as string}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={getPriorityColor(incident.priority as string)}>
+                                  {incident.priority as string}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={getStatusColor(incident.status as string)}>
+                                  {incident.status as string}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{incident.assignee as string || '-'}</TableCell>
+                              <TableCell className="text-yellow-400">
+                                {incident.sla_deadline ? formatDate(incident.sla_deadline as string) : '-'}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{formatDate(incident.created_at as string)}</TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon" className="hover:bg-primary/10">
+                                  <Icon name="MoreVertical" size={16} />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </TabsContent>
@@ -385,11 +448,11 @@ const Index = () => {
               <CardContent>
                 <Tabs defaultValue="all" className="w-full">
                   <TabsList className="mb-4">
-                    <TabsTrigger value="all">Все (248)</TabsTrigger>
-                    <TabsTrigger value="servers">Серверы (42)</TabsTrigger>
-                    <TabsTrigger value="apps">Приложения (56)</TabsTrigger>
-                    <TabsTrigger value="network">Сеть (35)</TabsTrigger>
-                    <TabsTrigger value="workstations">Рабочие станции (115)</TabsTrigger>
+                    <TabsTrigger value="all">Все ({cmdbItems.length})</TabsTrigger>
+                    <TabsTrigger value="servers">Серверы</TabsTrigger>
+                    <TabsTrigger value="apps">Приложения</TabsTrigger>
+                    <TabsTrigger value="network">Сеть</TabsTrigger>
+                    <TabsTrigger value="workstations">Рабочие станции</TabsTrigger>
                   </TabsList>
                   <TabsContent value="all">
                     <Table>
@@ -406,26 +469,40 @@ const Index = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {cmdbItems.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-muted/50 transition-smooth">
-                            <TableCell className="font-medium">{item.id}</TableCell>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{item.type}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={getStatusColor(item.status)}>
-                                {item.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{item.location}</TableCell>
-                            <TableCell className="text-muted-foreground">{item.owner}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{item.lastUpdate}</TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="hover:bg-primary/10">
-                                <Icon name="MoreVertical" size={16} />
-                              </Button>
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              Загрузка...
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : cmdbItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              CI не найдены
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          cmdbItems.map((item: Record<string, unknown>) => (
+                            <TableRow key={item.ci_id as string} className="hover:bg-muted/50 transition-smooth">
+                              <TableCell className="font-medium">{item.ci_id as string}</TableCell>
+                              <TableCell className="font-medium">{item.name as string}</TableCell>
+                              <TableCell className="text-muted-foreground">{item.type as string}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={getStatusColor(item.status as string)}>
+                                  {item.status as string}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{item.location as string || '-'}</TableCell>
+                              <TableCell className="text-muted-foreground">{item.owner as string || '-'}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{formatDate(item.updated_at as string)}</TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon" className="hover:bg-primary/10">
+                                  <Icon name="MoreVertical" size={16} />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </TabsContent>
